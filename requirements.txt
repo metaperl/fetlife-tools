@@ -1,3 +1,6 @@
 traitlets
 geopy
 Nominatim
+automated-selenium
+bs4
+loguru

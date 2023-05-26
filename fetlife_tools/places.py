@@ -6,6 +6,10 @@ from traitlets import Unicode, HasTraits, Any
 from traitlets.config import Application
 from bs4 import BeautifulSoup
 from loguru import logger
+from geopy.geocoders import Nominatim
+import time
+
+NOMINATUM_USER_NAME = "https://github.com/metaperl/fetlife-tools"
 
 
 def am_logged_in(page_source):
@@ -14,12 +18,23 @@ def am_logged_in(page_source):
     return len(matching)
 
 
+def lat_long_of(city, state):
+    time.sleep(2)
+    geolocator = Nominatim(user_agent=NOMINATUM_USER_NAME)
+    location = geolocator.geocode(f"{city} {state}")
+    if location:
+        return location.latitude, location.longitude
+    else:
+        return None
+
+
 class Place(HasTraits):
     name = Unicode()
     url = Unicode()
+    lat_long = Any()
 
     def __str__(self):
-        return f"{self.name} {self.url}"
+        return f"{self.name} {self.url} {self.lat_long}"
 
 
 class LoginResources:
@@ -61,7 +76,7 @@ class MyPage(BasePage):
         #           .login()\
         return self
 
-    def places(self, region_url):
+    def places(self, region_url, region_state):
         self.driver.get(region_url)
 
         html_doc = self.driver.page_source
@@ -75,7 +90,13 @@ class MyPage(BasePage):
         for a in main_tag.find_all('a'):
             if a.get('href').startswith('/p/'):
                 logger.debug(f"found place anchor {a}")
-                result.append(Place(name=a.string, url=a.get('href')))
+                city = a.string
+                url = a.get('href')
+                lat_long = lat_long_of(city, region_state)
+                if lat_long:
+                    result.append(Place(name=city, url=url, lat_long=lat_long))
+                else:
+                    logger.info(f"Skipping {city} because it has no lat-long in database")
 
         return result
 
@@ -84,11 +105,11 @@ class App(Application):
     driver = Any()
     my_page = Any()
     region_url = Unicode("https://fetlife.com/p/united-states/florida/related").tag(config=True)
-    region_code = Unicode("FL")
+    region_state = Unicode("FL")
     my_city = Unicode("Pompano Beach")
 
     def places_near_me(self):
-        places = self.my_page.places(self.region_url)
+        places = self.my_page.places(self.region_url, self.region_state)
         logger.debug("places = {}".format([str(p) for p in places]))
 
     def start(self):
