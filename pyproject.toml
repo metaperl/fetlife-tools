@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "fetlife-tools"
+version = "0.1.0"
+description = "tools to use fetlife.com"
+authors = ["Terrence Brannon <metaperl@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "fetlife_tools"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+automated-selenium = "^1.1.0"
+nicegui = "^1.2.14"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

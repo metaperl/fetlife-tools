@@ -1,3 +1,9 @@
+fetlife_tools/userpass.py
+fetlife_tools/peofile/
+peofile/*
+.idea/*
+*.whl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
