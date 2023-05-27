@@ -2,12 +2,15 @@ from automated_selenium import BasePage
 from automated_selenium import get_undetected_chrome_browser
 from automated_selenium.resources.resources import Selector
 from selenium.webdriver.common.by import By
-from traitlets import Unicode, HasTraits, Any
+from traitlets import Unicode, HasTraits, Any, default
 from traitlets.config import Application
 from bs4 import BeautifulSoup
 from loguru import logger
 from geopy.geocoders import Nominatim
 import time
+# import pandas as pd
+# import polars as pl
+import csv
 
 NOMINATUM_USER_NAME = "https://github.com/metaperl/fetlife-tools"
 
@@ -25,6 +28,23 @@ def lat_long_of(city, state):
     if location:
         return location.latitude, location.longitude
     else:
+        return None
+
+
+class PlaceBase(HasTraits):
+    """Database of places"""
+
+    def places(self):
+        csv_file = csv.reader(open('uscities.csv', "r"))
+        return csv_file
+
+    def lat_long_of(self, city, state):
+
+        for row in self.places():
+            # if current rows 2nd value is equal to input, print that row
+            if city == row[0] and state == row[2]:
+                logger.debug(f"found {row} for {city} and {state}")
+                return row[6], row[7]
         return None
 
 
@@ -86,6 +106,8 @@ class MyPage(BasePage):
         result = list()
 
         main_tag = soup.find("main")
+
+        place_base = PlaceBase()
 
         for a in main_tag.find_all('a'):
             if a.get('href').startswith('/p/'):
