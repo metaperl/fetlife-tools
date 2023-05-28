@@ -46,3 +46,5 @@ wsproto~=1.2.0
 tqdm~=4.65.0
 python-dotenv~=1.0.0
 websockets~=11.0.3
+greenlet~=2.0.2
+SQLAlchemy

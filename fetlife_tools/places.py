@@ -10,8 +10,7 @@ from geopy.geocoders import Nominatim
 import time
 # import pandas as pd
 # import polars as pl
-import csv
-
+from sqlalchemy.orm import Session
 NOMINATUM_USER_NAME = "https://github.com/metaperl/fetlife-tools"
 
 
@@ -22,7 +21,7 @@ def am_logged_in(page_source):
 
 
 def lat_long_of(city, state):
-    time.sleep(2)
+    time.sleep(1)
     geolocator = Nominatim(user_agent=NOMINATUM_USER_NAME)
     location = geolocator.geocode(f"{city} {state}")
     if location:
@@ -31,21 +30,21 @@ def lat_long_of(city, state):
         return None
 
 
-class PlaceBase(HasTraits):
-    """Database of places"""
-
-    def places(self):
-        csv_file = csv.reader(open('uscities.csv', "r"))
-        return csv_file
-
-    def lat_long_of(self, city, state):
-
-        for row in self.places():
-            # if current rows 2nd value is equal to input, print that row
-            if city == row[0] and state == row[2]:
-                logger.debug(f"found {row} for {city} and {state}")
-                return row[6], row[7]
-        return None
+# class PlaceBase(HasTraits):
+#     """Database of places"""
+#
+#     def places(self):
+#         csv_file = csv.reader(open('uscities.csv', "r"))
+#         return csv_file
+#
+#     def lat_long_of(self, city, state):
+#
+#         for row in self.places():
+#             # if current rows 2nd value is equal to input, print that row
+#             if city == row[0] and state == row[2]:
+#                 logger.debug(f"found {row} for {city} and {state}")
+#                 return row[6], row[7]
+#         return None
 
 
 class Place(HasTraits):
@@ -58,7 +57,6 @@ class Place(HasTraits):
 
 
 class LoginResources:
-    # your resources as follow
     username_field = Selector(By.XPATH, "//input[@id='user_login']")
     password_field = Selector(By.XPATH, "//input[@id='user_password']")
     submit_button = Selector(By.XPATH, "//button[@type='submit']")
@@ -90,13 +88,9 @@ class MyPage(BasePage):
         # click on submit button
         self.click(submit_button)
 
-        # Return self if you want to chain your actions as follow.
-        # login_page = LoginPage(driver)
-        # login_page.check_login()\
-        #           .login()\
         return self
 
-    def places(self, region_url, region_state):
+    def load_places(self, region_url, region_state):
         self.driver.get(region_url)
 
         html_doc = self.driver.page_source
@@ -107,18 +101,30 @@ class MyPage(BasePage):
 
         main_tag = soup.find("main")
 
-        place_base = PlaceBase()
+        import db
+        from sqlalchemy_model import Place
 
-        for a in main_tag.find_all('a'):
-            if a.get('href').startswith('/p/'):
-                logger.debug(f"found place anchor {a}")
-                city = a.string
-                url = a.get('href')
-                lat_long = lat_long_of(city, region_state)
-                if lat_long:
-                    result.append(Place(name=city, url=url, lat_long=lat_long))
-                else:
-                    logger.info(f"Skipping {city} because it has no lat-long in database")
+        with Session(db.engine) as session:
+            try:
+                for a in main_tag.find_all('a'):
+                    if a.get('href').startswith('/p/'):
+                        logger.debug(f"found place anchor {a}")
+                        city = a.string
+                        url = a.get('href')
+                        lat_long = lat_long_of(city, region_state)
+                        if lat_long:
+                            session.add(Place(
+                                city=city,
+                                state=region_state,
+                                url=url,
+                                latitude=lat_long[0],
+                                longitude=lat_long[1]
+                            ))
+                        else:
+                            logger.info(f"Skipping {city} because it has no lat-long in database")
+            except Exception as e:
+                logger.info(f"An exception occurred: {e}. Let's save the session.")
+                session.commit()
 
         return result
 
@@ -130,9 +136,8 @@ class App(Application):
     region_state = Unicode("FL")
     my_city = Unicode("Pompano Beach")
 
-    def places_near_me(self):
-        places = self.my_page.places(self.region_url, self.region_state)
-        logger.debug("places = {}".format([str(p) for p in places]))
+    def load_places(self):
+        self.my_page.load_places(self.region_url, self.region_state)
 
     def start(self):
         profile_name = 'my_profile'
@@ -142,7 +147,7 @@ class App(Application):
 
         import userpass
         self.my_page.login(userpass.username, userpass.password)
-        self.places_near_me()
+        self.load_places()
 
 
 if __name__ == "__main__":
