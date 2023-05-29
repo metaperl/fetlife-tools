@@ -11,6 +11,7 @@ import time
 # import pandas as pd
 # import polars as pl
 from sqlalchemy.orm import Session
+
 NOMINATUM_USER_NAME = "https://github.com/metaperl/fetlife-tools"
 
 
@@ -97,19 +98,24 @@ class MyPage(BasePage):
 
         soup = BeautifulSoup(html_doc, 'html.parser')
 
-        result = list()
-
         main_tag = soup.find("main")
 
         import db
         from sqlalchemy_model import Place
-
+        # TODO: add Indian Creek Village manually
         with Session(db.engine) as session:
             try:
+                last_added = False  # city is not added to db
                 for a in main_tag.find_all('a'):
                     if a.get('href').startswith('/p/'):
                         logger.debug(f"found place anchor {a}")
                         city = a.string
+                        if not last_added:
+                            if city == 'Indian Creek Village':
+                                logger.debug("Found last added city. Will start populating database.")
+                                last_added = True
+                            continue
+                        logger.debug(f'Populating database with {city}')
                         url = a.get('href')
                         lat_long = lat_long_of(city, region_state)
                         if lat_long:
@@ -120,13 +126,12 @@ class MyPage(BasePage):
                                 latitude=lat_long[0],
                                 longitude=lat_long[1]
                             ))
+                            session.commit()
                         else:
                             logger.info(f"Skipping {city} because it has no lat-long in database")
             except Exception as e:
                 logger.info(f"An exception occurred: {e}. Let's save the session.")
                 session.commit()
-
-        return result
 
 
 class App(Application):
